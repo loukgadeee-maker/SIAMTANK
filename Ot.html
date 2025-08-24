@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ฟอร์มขอทำโอที</title>
+    <!-- นำเข้า Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- นำเข้า SweetAlert2 สำหรับแสดงกล่องข้อความ -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- นำเข้า LIFF SDK ของ LINE -->
+    <script src="https://static.line-scdn.net/liff/edge/2.1/sdk.js"></script>
+    <style>
+        /* ปิด native appearance ของทุกเบราเซอร์ */
+        
+        input,
+        textarea,
+        select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+    <div class="max-w-md mx-auto p-4 relative">
+        <input type="hidden" id="displayName" name="displayName">
+        <!-- Overlay สำหรับ loading -->
+        <div id="loadingOverlay" class="hidden absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 m-6 rounded-lg z-[1000]">
+            <div class="text-center text-white text-md">ค้นหารายชื่อ..</div>
+        </div>
+
+        <div class="flex justify-center items-center">
+            <div class="bg-slate-800 rounded-lg shadow-lg p-6">
+                <div class="flex items-center mb-4">
+                    <img class="mx-auto w-24 h-24 object-cover rounded-lg mr-4" id="columnEData" src="https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png">
+                    <div>
+                        <input type="text" id="columnBData" name="columnBData" placeholder="ชื่อ" class="bg-slate-50 text-white text-md font-bold bg-opacity-0 mb-2" readonly>
+                        <input type="text" id="columnCData" name="columnCData" placeholder="รหัสพนักงาน" class="text-white text-md bg-white bg-opacity-0 mb-2" readonly>
+                        <input type="text" id="columnDData" name="columnDData" placeholder="ตำแหน่ง" class="text-white text-md bg-white bg-opacity-0" readonly>
+                    </div>
+                </div>
+                <div class="p-4 bg-slate-600 rounded-md">
+                    <div class="flex justify-between">
+                        <h1 class="font-light text-white text-center text-md">🕔 </h1>
+                        <input type="text" id="columnGData" name="columnGData" class="text-md bg-white text-white font-bold bg-opacity-0" readonly>
+                    </div>
+                </div>
+                <input type="hidden" id="userId" name="userId">
+                <input type="hidden" id="columnAData" name="columnAData">
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-md mx-auto px-4">
+        <form>
+            <div class="bg-white relative p-4 shadow-lg rounded-lg w-full mx-auto">
+                <div class="flex justify-between">
+                    <div class="mt-4 flex justify-between mb-5 w-full">
+                        <div class="w-1/2 mr-2">
+                            <label for="otDate" class="block text-sm font-medium text-gray-700 mb-1">วันที่ทำโอที</label>
+                            <!-- ใช้ input type="date" -->
+                            <input type="date" id="otDate" name="otDate" class="w-full p-2 rounded-lg border">
+                        </div>
+                        <div class="w-1/2 ml-2">
+                            <label for="totalTime" class="block text-sm font-medium text-gray-700 mb-1">เวลาทำโอที</label>
+                            <input type="text" id="totalTime" name="totalTime" class="w-full p-2 border rounded-lg bg-gray-100" readonly>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 flex justify-between mb-5">
+                    <div class="w-1/2 mr-2">
+                        <label for="startTime" class="block text-sm font-medium text-gray-700 mb-1">เวลาเริ่มต้น</label>
+                        <!-- ใช้ input type="time" -->
+                        <input type="time" id="startTime" name="startTime" class="w-full p-2 rounded-lg border">
+                    </div>
+                    <div class="w-1/2 ml-2">
+                        <label for="endTime" class="block text-sm font-medium text-gray-700 mb-1">เวลาสิ้นสุด</label>
+                        <input type="time" id="endTime" name="endTime" class="w-full p-2 rounded-lg border">
+                    </div>
+                </div>
+
+                <div class="mt-6 mb-5">
+                    <label for="otTitle" class="block text-sm font-medium text-gray-700 mb-1">หัวข้อเรื่อง</label>
+                    <input type="text" id="otTitle" name="otTitle" class="w-full p-2 border rounded-lg">
+                </div>
+                <div class="mt-4 mb-5">
+                    <label for="otDetail" class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
+                    <textarea id="otDetail" name="otDetail" class="w-full p-2 border rounded-lg"></textarea>
+                </div>
+                <div class="text-center bg-slate-100 rounded-lg my-5 p-4">
+                    <label for="file" class="block text-sm font-medium text-gray-700 mb-1">อัพโหลดเอกสาร</label>
+                    <label for="file" class="cursor-pointer flex justify-center items-center">
+					<input type="file" id="file" name="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" class=" w-full mx-auto text-center px-8">
+				  </label>
+                    <div class="mx-auto text-slate-800 text-xs text-center mt-1">รูปแบบที่รองรับ jpg jpeg png pdf doc docx</div>
+                </div>
+                <button type="button" id="submitBtn" class="bg-slate-800 w-full text-white py-4 px-4 rounded-lg hover:bg-slate-600">บันทึกข้อมูล</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        // เริ่มการทำงานเมื่อโหลดหน้าเว็บ (ไม่ต้องตั้งค่า Flatpickr)
+        window.onload = async function() {
+            await initializeLiff();
+            // กำหนดวันที่เป็นวันปัจจุบัน (รูปแบบ YYYY-MM-DD)
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('otDate').value = today;
+
+            // กำหนดเวลาเริ่มต้นเป็น 00:00
+            document.getElementById('startTime').value = '00:00';
+            // กำหนดเวลาเริ่มต้นเป็น 00:00
+            document.getElementById('endTime').value = '00:00';
+            // คำนวณรวมเวลา (จะได้ "0 ชม 0 นาที")
+            calcDiff();
+
+        };
+
+        async function initializeLiff() {
+            try {
+                await liff.init({
+                    liffId: `${LIFF_ID_OT}`
+                });
+                if (liff.isLoggedIn()) {
+                    getUserProfile();
+                } else {
+                    liff.login();
+                }
+            } catch (error) {
+                console.error('Error initializing LIFF:', error);
+            }
+        }
+
+        async function getUserProfile() {
+            try {
+                const profile = await liff.getProfile();
+                document.getElementById('userId').value = profile.userId;
+                document.getElementById('displayName').value = profile.displayName;
+                await fetchData(profile.userId);
+            } catch (error) {
+                console.error('Error getting profile data:', error);
+            }
+        }
+
+        async function fetchData(userId) {
+            showLoading(true);
+            try {
+                const res = await fetch(`${WEB_APP_MEMBER_URL}`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'fetchData',
+                        userId
+                    })
+                });
+                const data = await res.json();
+                data.sort((a, b) => new Date(b[6]) - new Date(a[6]));
+                const row = data.find(r => r[1] === userId);
+                if (row) displayData(row);
+            } catch (e) {
+                console.error('Error fetching data:', e);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayData(row) {
+            document.getElementById('columnAData').value = row[1] || '';
+            document.getElementById('columnBData').value = row[2] || '';
+            document.getElementById('columnCData').value = row[3] || '';
+            document.getElementById('columnDData').value = row[4] || '';
+            document.getElementById('columnEData').src = row[5] || document.getElementById('columnEData').src;
+            document.getElementById('columnGData').value = row[10] || '';
+        }
+
+        function showLoading(isLoading) {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.toggle('flex', isLoading);
+            overlay.classList.toggle('hidden', !isLoading);
+        }
+
+        // ฟังก์ชันคำนวณเวลาทำโอที
+        function calculateTimeDifference(start, end) {
+            const [sh, sm] = start.split(':').map(Number);
+            const [eh, em] = end.split(':').map(Number);
+            let diff = (eh * 60 + em) - (sh * 60 + sm);
+            if (diff < 0) diff += 24 * 60;
+            const h = Math.floor(diff / 60),
+                m = diff % 60;
+            return `${h} ชั่วโมง ${m} นาที`;
+        }
+
+        // อัพเดต totalTime เมื่อเวลาเปลี่ยน
+        document.getElementById('startTime').addEventListener('change', updateTotal);
+        document.getElementById('endTime').addEventListener('change', updateTotal);
+
+        function updateTotal() {
+            const s = document.getElementById('startTime').value;
+            const e = document.getElementById('endTime').value;
+            if (s && e) document.getElementById('totalTime').value = calculateTimeDifference(s, e);
+        }
+
+        function validateForm() {
+            const ids = ['userId', 'columnBData', 'columnDData', 'otDate', 'startTime', 'endTime', 'otTitle', 'otDetail'];
+            return ids.every(id => document.getElementById(id).value.trim() !== '');
+        }
+
+        document.getElementById('submitBtn').addEventListener('click', async e => {
+            e.preventDefault();
+            if (!validateForm()) {
+                return Swal.fire({
+                    icon: 'error',
+                    title: 'Validation Error',
+                    text: 'กรุณากรอกข้อมูลให้ครบ.'
+                });
+            }
+            const ok = (await Swal.fire({
+                title: 'ยืนยันการส่ง?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'ใช่, ส่งข้อมูล!',
+                cancelButtonText: 'ไม่, ยกเลิก'
+            })).isConfirmed;
+            if (!ok) return Swal.fire('ยกเลิกแล้ว', 'ข้อมูลไม่ได้ถูกส่ง', 'info');
+
+            submitBtn.disabled = true;
+            Swal.fire({
+                title: 'กำลังบันทึก...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            // เตรียมข้อมูลส่ง
+            let obj = {
+                userlineId: document.getElementById('userId').value,
+                nameId: document.getElementById('columnBData').value,
+                roleId: document.getElementById('columnDData').value,
+                numberId: document.getElementById('columnCData').value,
+                otDate: document.getElementById('otDate').value,
+                startTime: document.getElementById('startTime').value,
+                endTime: document.getElementById('endTime').value,
+                totalTime: document.getElementById('totalTime').value,
+                otTitle: document.getElementById('otTitle').value,
+                otDetail: document.getElementById('otDetail').value,
+            };
+            const fileInput = document.getElementById('file');
+            if (fileInput.files.length) {
+                const base64 = await new Promise((res, rej) => {
+                    const r = new FileReader();
+                    r.onload = () => res(r.result.split(',')[1]);
+                    r.onerror = rej;
+                    r.readAsDataURL(fileInput.files[0]);
+                });
+                obj.base64 = base64;
+                obj.type = fileInput.files[0].type;
+                obj.name = fileInput.files[0].name;
+            }
+
+            try {
+                const resp = await fetch(`${WEB_APP_OT_URL}`, {
+                    method: 'POST',
+                    body: JSON.stringify(obj)
+                });
+                const text = await resp.text();
+                Swal.fire({
+                        title: 'สำเร็จ!',
+                        text: 'บันทึกเรียบร้อย',
+                        icon: 'success'
+                    })
+                    .then(() => {
+                        document.querySelector('form').reset();
+                        sendFlexMessage(obj);
+                    });
+            } catch (err) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'เกิดข้อผิดพลาดในการส่งข้อมูล.'
+                });
+                console.error(err);
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+
+        async function sendFlexMessage(data) {
+            const flex = {
+                type: "flex",
+                altText: "คำขออนุมัติการทำโอที",
+                contents: {
+                    type: "bubble",
+                    body: {
+                        type: "box",
+                        layout: "vertical",
+                        contents: [{
+                            type: "text",
+                            text: "🟢 คำขออนุมัติการทำโอที",
+                            weight: "bold",
+                            size: "md",
+                            color: "#1DB446"
+                        }, {
+                            type: "box",
+                            layout: "vertical",
+                            margin: "lg",
+                            spacing: "sm",
+                            contents: [{
+                                type: "text",
+                                text: `ชื่อ: ${data.nameId}`
+                            }, {
+                                type: "text",
+                                text: `วันที่ทำโอที: ${formatDate(data.otDate)}`
+                            }, {
+                                type: "text",
+                                text: `เวลาเริ่ม: ${data.startTime}`
+                            }, {
+                                type: "text",
+                                text: `เวลาสิ้นสุด: ${data.endTime}`
+                            }, {
+                                type: "text",
+                                color: "#2d63c7",
+                                text: "📋 รอการอนุมัติ"
+                            }]
+                        }]
+                    }
+                }
+            };
+            try {
+                await liff.sendMessages([flex]);
+                liff.closeWindow();
+            } catch (e) {
+                console.error("Flex send error:", e);
+            }
+        }
+
+        function formatDate(d) {
+            const [y, m, day] = d.split('-');
+            return `${day.padStart(2,'0')}/${m.padStart(2,'0')}/${y}`;
+        }
+    </script>
+</body>
+
+</html>

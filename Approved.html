@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบอนุมัติคำขอ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+  </style>
+</head>
+<body class="bg-white text-gray-800 font-sans min-h-screen flex flex-col">
+
+  <header class="bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-10">
+    <h1 class="text-xl font-bold">ระบบอนุมัติคำขอ</h1>
+    <div class="relative">
+      <span class="text-2xl cursor-pointer" title="รายการที่รออนุมัติ">⏳</span>
+      <span id="pendingCount" class="absolute -top-1 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+    </div>
+  </header>
+
+  <main class="flex-grow container mx-auto px-4 py-6">
+    <div class="mb-4 flex space-x-2">
+      <button id="tabLeave" class="px-4 py-2 rounded-lg font-medium transition-colors duration-200 bg-black text-white hover:bg-gray-800">การลา</button>
+      <button id="tabOT" class="px-4 py-2 rounded-lg font-medium transition-colors duration-200 bg-gray-200 text-gray-800 hover:bg-gray-300">โอที</button>
+    </div>
+
+    <div id="leaveSection">
+      <h2 class="text-lg font-semibold mb-3">รายการการลา</h2>
+      <div id="leaveCards" class="space-y-3">
+        <!-- Leave cards will be loaded here -->
+      </div>
+      <p id="leaveEmpty" class="text-center text-gray-500 py-4 hidden">ไม่มีรายการการลาที่ต้องอนุมัติ</p>
+      <div id="leavePagination" class="flex justify-center items-center space-x-4 mt-6">
+        <button id="prevLeavePage" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">ก่อนหน้า</button>
+        <span id="currentLeavePageDisplay" class="text-lg font-semibold">หน้า 1</span>
+        <button id="nextLeavePage" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">ถัดไป</button>
+      </div>
+    </div>
+
+    <div id="otSection" class="hidden">
+      <h2 class="text-lg font-semibold mb-3">รายการโอที</h2>
+      <div id="otCards" class="space-y-3">
+        <!-- OT cards will be loaded here -->
+      </div>
+      <p id="otEmpty" class="text-center text-gray-500 py-4 hidden">ไม่มีรายการโอทีที่ต้องอนุมัติ</p>
+      <div id="otPagination" class="flex justify-center items-center space-x-4 mt-6">
+        <button id="prevOTPage" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">ก่อนหน้า</button>
+        <span id="currentOTPageDisplay" class="text-lg font-semibold">หน้า 1</span>
+        <button id="nextOTPage" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">ถัดไป</button>
+      </div>
+    </div>
+  </main>
+ <script src="config.js"></script>
+<script>
+    let leavesData = [];
+    let otData = [];
+    let currentLeavePage = 1;
+    let currentOTPage = 1;
+    const itemsPerPage = 10; // 10 รายการต่อหน้า
+
+    // Helper function to get status-specific Tailwind classes
+    function getStatusClasses(status) {
+      switch (status) {
+        case 'อนุมัติ':
+          return 'bg-green-100 text-green-800';
+        case 'ไม่อนุมัติ':
+          return 'bg-red-100 text-red-800';
+        case 'รออนุมัติ': // **สำคัญ**: ตรวจสอบให้แน่ใจว่าสถานะ "รออนุมัติ" ใน Google Sheet ใช้คำนี้
+        default:
+          return 'bg-yellow-100 text-yellow-800';
+      }
+    }
+
+    // Function to update the pending count badge
+    function updatePendingCount(count) {
+        const pendingCountEl = document.getElementById('pendingCount');
+        if (count > 0) {
+            pendingCountEl.textContent = count;
+            pendingCountEl.classList.remove('hidden');
+        } else {
+            pendingCountEl.classList.add('hidden');
+        }
+    }
+
+    // Generic function to render cards for both Leave and OT
+    function renderCards(rows, type, currentPage) {
+      const cardContainer = document.getElementById(`${type}Cards`);
+      const emptyMessage = document.getElementById(`${type}Empty`);
+      cardContainer.innerHTML = ''; // Clear existing cards
+
+      // Calculate pending items from ALL data, not just current page
+      let totalPendingItems = rows.filter(row => {
+          // Assuming row[11] is status for leave, row[12] is status for OT based on previous code
+          const status = type === 'leave' ? row[11] : row[12];
+          return status === 'รออนุมัติ';
+      }).length;
+      updatePendingCount(totalPendingItems);
+
+      if (rows.length === 0) {
+        emptyMessage.classList.remove('hidden');
+        document.getElementById(`${type}Pagination`).classList.add('hidden');
+        // If no data, no need to update pagination buttons which will be hidden anyway
+        return;
+      } else {
+        emptyMessage.classList.add('hidden');
+        document.getElementById(`${type}Pagination`).classList.remove('hidden');
+      }
+
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const pageItems = rows.slice(startIndex, endIndex);
+
+      pageItems.forEach(row => {
+        const rowId = row[0]; // Assuming ID is always row[0]
+        const status = type === 'leave' ? row[11] : row[12]; // Status column
+        const card = document.createElement('div');
+        card.classList.add('bg-gray-50', 'rounded-lg', 'shadow-md', 'p-3', 'flex', 'items-center', 'justify-between', 'gap-2'); // p-3 for more compact, gap-2 for spacing
+
+        let cardContent = '';
+        if (type === 'leave') {
+          cardContent = `
+            <div class="flex-1 min-w-0 pr-2">
+              <p class="font-semibold text-base truncate">${row[2] || '-'}</p> <!-- ชื่อ -->
+              <p class="text-xs text-gray-600 truncate">ประเภท: ${row[5] || '-'}</p> <!-- ประเภท -->
+              <p class="text-xs text-gray-600 truncate">วัน: ${row[12] || '-'}</p> <!-- วัน -->
+              <span class="mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusClasses(status)}">${status || '-'}</span>
+            </div>
+            <div class="flex flex-col space-y-2">
+              <button onclick="updateStatus('${rowId}', 'อนุมัติ', '${type}')" class="px-3 py-1 rounded-lg text-white text-xs bg-black hover:bg-gray-700 transition-colors duration-200">อนุมัติ</button>
+              <button onclick="updateStatus('${rowId}', 'ไม่อนุมัติ', '${type}')" class="px-3 py-1 rounded-lg text-white text-xs bg-red-500 hover:bg-red-600 transition-colors duration-200">ไม่อนุมัติ</button>
+            </div>
+          `;
+        } else { // type === 'ot'
+          // **Important: Double check these column indices (e.g., row[2] for name, row[5] for date, row[8] for total time, row[12] for status) match your actual OT data in Google Sheet.**
+          cardContent = `
+            <div class="flex-1 min-w-0 pr-2">
+              <p class="font-semibold text-base truncate">${row[2] || '-'}</p> <!-- ชื่อ -->
+              <p class="text-xs text-gray-600 truncate">วันที่: ${row[5] || '-'}</p> <!-- วันที่ -->
+              <p class="text-xs text-gray-600 truncate">เวลารวม: ${row[8] || '-'}</p> <!-- เวลารวม -->
+              <span class="mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusClasses(status)}">${status || '-'}</span>
+            </div>
+            <div class="flex flex-col space-y-2">
+              <button onclick="updateStatus('${rowId}', 'อนุมัติ', '${type}')" class="px-3 py-1 rounded-lg text-white text-xs bg-black hover:bg-gray-700 transition-colors duration-200">อนุมัติ</button>
+              <button onclick="updateStatus('${rowId}', 'ไม่อนุมัติ', '${type}')" class="px-3 py-1 rounded-lg text-white text-xs bg-red-500 hover:bg-red-600 transition-colors duration-200">ไม่อนุมัติ</button>
+            </div>
+          `;
+        }
+        card.innerHTML = cardContent;
+        cardContainer.appendChild(card);
+      });
+
+      updatePaginationButtons(rows.length, currentPage, type);
+    }
+
+    // Update pagination buttons state
+    function updatePaginationButtons(totalItems, currentPage, type) {
+      const totalPages = Math.ceil(totalItems / itemsPerPage);
+      // **แก้ไขตรงนี้**: ทำให้ `typeForId` ตรงกับ ID ใน HTML (OT เป็นพิมพ์ใหญ่)
+      const typeForId = type === 'ot' ? 'OT' : type.charAt(0).toUpperCase() + type.slice(1);
+      
+      const prevButton = document.getElementById(`prev${typeForId}Page`);
+      const nextButton = document.getElementById(`next${typeForId}Page`);
+      const pageDisplay = document.getElementById(`current${typeForId}PageDisplay`);
+
+      // **เพิ่ม Null Check เพื่อความปลอดภัย**
+      if (prevButton) prevButton.disabled = currentPage === 1;
+      if (nextButton) nextButton.disabled = currentPage === totalPages || totalPages === 0;
+      if (pageDisplay) pageDisplay.textContent = `หน้า ${currentPage} จาก ${totalPages > 0 ? totalPages : 1}`;
+    }
+
+    // Go to a specific page
+    function goToPage(page, type) {
+      if (type === 'leave') {
+        currentLeavePage = page;
+        renderCards(leavesData, type, currentLeavePage);
+      } else {
+        currentOTPage = page;
+        renderCards(otData, type, currentOTPage);
+      }
+    }
+
+    async function fetchData(type) {
+      Swal.fire({
+        title: 'กำลังโหลดข้อมูล...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+      try {
+        const response = await fetch(`${APPROVED_WEB_APP_URL}?method=getData&type=${type}`);
+        // Check if the response is OK (status 200-299)
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! Status: ${response.status}. Response: ${errorText}`);
+        }
+        const data = await response.json();
+        Swal.close();
+
+        // Sort data by Timestamp (row[1]) in descending order (latest first)
+        // Ensure that row[1] indeed contains a valid date/time string or timestamp
+        const sortedData = data.slice(1).sort((a, b) => {
+            // Add null/undefined check for a[1] and b[1] to prevent errors if data is missing
+            const dateA = a[1] ? new Date(a[1]) : new Date(0); // Use epoch if timestamp is missing
+            const dateB = b[1] ? new Date(b[1]) : new Date(0);
+            return dateB - dateA; // For descending order (latest first)
+        });
+
+        if (type === 'leave') {
+          leavesData = sortedData;
+          currentLeavePage = 1; // Reset to first page on new data fetch
+          renderCards(leavesData, type, currentLeavePage);
+        } else { // This is the OT section
+          otData = sortedData;
+          currentOTPage = 1; // Reset to first page on new data fetch
+          renderCards(otData, type, currentOTPage);
+        }
+      } catch (err) {
+        Swal.fire('ผิดพลาด', 'ไม่สามารถดึงข้อมูลได้: โปรดตรวจสอบ URL ของ GAS Web App, การตั้งค่าสิทธิ์, หรือข้อผิดพลาดใน GAS Script ของคุณ<br>ข้อความผิดพลาด: ' + err.message, 'error');
+        // Clear cards and show empty message on error
+        document.getElementById(`${type}Cards`).innerHTML = '';
+        document.getElementById(`${type}Empty`).classList.remove('hidden');
+        document.getElementById(`${type}Pagination`).classList.add('hidden'); // Hide pagination on error
+        updatePendingCount(0); // If data fetch fails, assume no pending items
+      }
+    }
+
+    async function updateStatus(id, newStatus, type) {
+      Swal.fire({
+        title: 'กำลังอัปเดตสถานะ...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      try {
+        const formData = new URLSearchParams();
+        formData.append('method', type === 'leave' ? 'updateLeaveStatus' : 'updateOTStatus');
+        formData.append('id', id);
+        formData.append('status', newStatus);
+
+        const response = await fetch(APPROVED_WEB_APP_URL, {
+          method: 'POST',
+          body: formData
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! Status: ${response.status}. Response: ${errorText}`);
+        }
+
+        Swal.fire('สำเร็จ', 'สถานะได้รับการอัปเดตเรียบร้อย', 'success');
+        fetchData(type); // Re-fetch all data and re-render the current tab to reflect changes
+      } catch (err) {
+        Swal.fire('ผิดพลาด', 'ไม่สามารถอัปเดตสถานะได้: ' + err.message, 'error');
+      }
+    }
+
+    // Tab switching logic
+    const tabLeave = document.getElementById('tabLeave');
+    const tabOT = document.getElementById('tabOT');
+    const leaveSection = document.getElementById('leaveSection');
+    const otSection = document.getElementById('otSection');
+
+    function switchTab(type) {
+        // Hide both sections first
+        leaveSection.classList.add('hidden');
+        otSection.classList.add('hidden');
+
+        // Remove active class from all tabs
+        tabLeave.classList.remove('bg-black', 'text-white', 'hover:bg-gray-800');
+        tabLeave.classList.add('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+        tabOT.classList.remove('bg-black', 'text-white', 'hover:bg-gray-800');
+        tabOT.classList.add('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+
+        // Show the selected section and add active class to the tab
+        if (type === 'leave') {
+            leaveSection.classList.remove('hidden');
+            tabLeave.classList.remove('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+            tabLeave.classList.add('bg-black', 'text-white', 'hover:bg-gray-800');
+            fetchData('leave');
+        } else {
+            otSection.classList.remove('hidden');
+            tabOT.classList.remove('bg-gray-200', 'text-gray-800', 'hover:bg-gray-300');
+            tabOT.classList.add('bg-black', 'text-white', 'hover:bg-gray-800');
+            fetchData('ot');
+        }
+    }
+
+    // Event listeners for tabs
+    tabLeave.addEventListener('click', () => switchTab('leave'));
+    tabOT.addEventListener('click', () => switchTab('ot'));
+
+    // Event listeners for pagination
+    document.getElementById('prevLeavePage').addEventListener('click', () => goToPage(currentLeavePage - 1, 'leave'));
+    document.getElementById('nextLeavePage').addEventListener('click', () => goToPage(currentLeavePage + 1, 'leave'));
+    document.getElementById('prevOTPage').addEventListener('click', () => goToPage(currentOTPage - 1, 'ot'));
+    document.getElementById('nextOTPage').addEventListener('click', () => goToPage(currentOTPage + 1, 'ot'));
+
+    // Load initial tab on page load
+    window.onload = () => {
+      switchTab('leave'); // Default to 'การลา' tab
+    };
+  </script>
+</body>
+</html>
